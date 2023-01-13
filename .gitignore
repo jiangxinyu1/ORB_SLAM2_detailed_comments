@@ -30,5 +30,5 @@ lib/
 **/*build-*
 **/*buildpc*
 *.swp
-cmake-build-debug
+./cmake-build-debug/*
 
