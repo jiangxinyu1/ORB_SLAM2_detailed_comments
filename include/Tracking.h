@@ -389,11 +389,11 @@ protected:
     Map* mpMap;
 
     //Calibration matrix   相机的参数矩阵相关
-    ///相机的内参数矩阵
+    // 相机的内参数矩阵
     cv::Mat mK;
-    ///相机的去畸变参数
+    // 相机的去畸变参数
     cv::Mat mDistCoef;
-    ///相机的基线长度 * 相机的焦距
+    // 相机的基线长度 * 相机的焦距
     float mbf;
 
     //New KeyFrame rules (according to fps)

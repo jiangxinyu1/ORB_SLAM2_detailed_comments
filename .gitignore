@@ -25,3 +25,10 @@ doc/
 lib/
 */html/
 
+
+**/build*
+**/*build-*
+**/*buildpc*
+*.swp
+cmake-build-debug
+
