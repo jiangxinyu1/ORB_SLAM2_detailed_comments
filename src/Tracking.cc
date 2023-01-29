@@ -218,7 +218,7 @@ Tracking::Tracking( System *pSys,
     mThDepth = mbf*(float)fSettings["ThDepth"]/mK.at<float>(0,0);
     cout << endl << "Depth Threshold (Close/Far Points): " << mThDepth << endl;
   }
-  // 如果相机模型是RGBD，计算一个转化因子,(暂时理解为尺度缩放)
+  // 如果相机模型是RGBD，计算一个转化因子 (暂时理解为尺度缩放)
   if(sensor==System::RGBD)
   {
     /// 深度相机disparity转化为depth时的因子
@@ -254,10 +254,18 @@ void Tracking::SetViewer(Viewer *pViewer)
 // 输出世界坐标系到该帧相机坐标系的变换矩阵
 
 
-cv::Mat Tracking::GrabImageStereo(
-    const cv::Mat &imRectLeft,      //左侧图像
-    const cv::Mat &imRectRight,     //右侧图像
-    const double &timestamp)        //时间戳
+/**
+ * 输入左右目图像，可以为RGB、BGR、RGBA、GRAY
+ * 1、将图像转为mImGray和imGrayRight并初始化mCurrentFrame
+ * 2、进行tracking过程
+ * @param imRectLeft
+ * @param imRectRight
+ * @param timestamp
+ * @return 输出世界坐标系到该帧相机坐标系的变换矩阵
+ */
+cv::Mat Tracking::GrabImageStereo( const cv::Mat &imRectLeft,      //左侧图像
+                                   const cv::Mat &imRectRight,     //右侧图像
+                                   const double &timestamp)        //时间戳
 {
   mImGray = imRectLeft;
   cv::Mat imGrayRight = imRectRight;
@@ -292,17 +300,16 @@ cv::Mat Tracking::GrabImageStereo(
   }
 
   // Step 2 ：构造Frame
-  mCurrentFrame = Frame(
-      mImGray,                //左目图像
-      imGrayRight,            //右目图像
-      timestamp,              //时间戳
-      mpORBextractorLeft,     //左目特征提取器
-      mpORBextractorRight,    //右目特征提取器
-      mpORBVocabulary,        //字典
-      mK,                     //内参矩阵
-      mDistCoef,              //去畸变参数
-      mbf,                    //基线长度
-      mThDepth);              //远点,近点的区分阈值
+  mCurrentFrame = Frame(mImGray,                //左目图像
+                        imGrayRight,            //右目图像
+                        timestamp,              //时间戳
+                        mpORBextractorLeft,     //左目特征提取器
+                        mpORBextractorRight,    //右目特征提取器
+                        mpORBVocabulary,        // 字典
+                        mK,                     // 内参矩阵
+                        mDistCoef,              // 去畸变参数
+                        mbf,                    // 基线长度
+                        mThDepth);              //远点,近点的区分阈值
 
   // Step 3 ：跟踪
   Track();
@@ -315,10 +322,9 @@ cv::Mat Tracking::GrabImageStereo(
 // 1、将图像转为mImGray和imDepth并初始化mCurrentFrame
 // 2、进行tracking过程
 // 输出世界坐标系到该帧相机坐标系的变换矩阵
-cv::Mat Tracking::GrabImageRGBD(
-    const cv::Mat &imRGB,           //彩色图像
-    const cv::Mat &imD,             //深度图像
-    const double &timestamp)        //时间戳
+cv::Mat Tracking::GrabImageRGBD( const cv::Mat &imRGB,           //彩色图像
+                                 const cv::Mat &imD,             //深度图像
+                                 const double &timestamp)        //时间戳
 {
   mImGray = imRGB;
   cv::Mat imDepth = imD;
@@ -404,8 +410,8 @@ cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im,
   }
 
   // Step 2 ：构造Frame
-  //判断该帧是不是初始化
-  if(mState==NOT_INITIALIZED || mState==NO_IMAGES_YET) //没有成功初始化的前一个状态就是NO_IMAGES_YET
+  //判断该帧是不是初始化 (没有成功初始化的前一个状态就是NO_IMAGES_YET)
+  if(mState==NOT_INITIALIZED || mState==NO_IMAGES_YET)
     mCurrentFrame = Frame(mImGray,
                           timestamp,
                           mpIniORBextractor,      //初始化ORB特征点提取器会提取2倍的指定特征点数目
@@ -431,11 +437,9 @@ cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im,
   return mCurrentFrame.mTcw.clone();
 }
 
-/*
+/**
  * @brief Main tracking function. It is independent of the input sensor.
- *
  * track包含两部分：估计运动、跟踪局部地图
- *
  * Step 1：初始化
  * Step 2：跟踪
  * Step 3：记录位姿信息，用于轨迹复现
@@ -483,23 +487,24 @@ void Tracking::Track()
     // bOK为临时变量，用于表示每个函数是否执行成功
     bool bOK;
 
-    // Initial camera pose estimation using motion model or relocalization (if tracking is lost)
-    // mbOnlyTracking等于false表示正常SLAM模式（定位+地图更新），mbOnlyTracking等于true表示仅定位模式
-    // tracking 类构造时默认为false。在viewer中有个开关ActivateLocalizationMode，可以控制是否开启mbOnlyTracking
+    /*
+     * Initial camera pose estimation using motion model or relocalization (if tracking is lost)
+     * mbOnlyTracking等于false表示正常SLAM模式（定位+地图更新），mbOnlyTracking等于true表示仅定位模式
+     * tracking 类构造时默认为false。在viewer中有个开关ActivateLocalizationMode，可以控制是否开启mbOnlyTracking
+     */
     if(!mbOnlyTracking)
     {
       // Local Mapping is activated. This is the normal behaviour, unless
       // you explicitly activate the "only tracking" mode.
-
       // Step 2：跟踪进入正常SLAM模式，有地图更新
       // 是否正常跟踪
       if(mState==OK)
       {
-        // Local Mapping might have changed some MapPoints tracked in last frame
         // Step 2.1 检查并更新上一帧被替换的MapPoints
+        // Local Mapping might have changed some MapPoints tracked in last frame
         // 局部建图线程则可能会对原有的地图点进行替换.在这里进行检查
         CheckReplacedInLastFrame();
-
+        //
         // Step 2.2 运动模型是空的或刚完成重定位，跟踪参考关键帧；否则恒速模型跟踪
         // 第一个条件,如果运动模型为空,说明是刚初始化开始，或者已经跟丢了
         // 第二个条件,如果当前帧紧紧地跟着在重定位的帧的后面，我们将重定位帧来恢复位姿

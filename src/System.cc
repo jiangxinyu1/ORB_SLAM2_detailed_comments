@@ -34,6 +34,7 @@ namespace ORB_SLAM2
 
 /**
  * 系统的构造函数，将会启动其他的线程
+ * 在main函数中构造；
  * @param strVocFile 词典文件路径
  * @param strSettingsFile 配置文件路径
  * @param sensor 传感器类型
@@ -43,125 +44,123 @@ System::System(const string &strVocFile,
                const string &strSettingsFile,
                const eSensor sensor,
                const bool bUseViewer):
-    mSensor(sensor), 							//初始化传感器类型
-    mpViewer(static_cast<Viewer*>(NULL)),		//空。。。对象指针？
-    mbReset(false),							//无复位标志
-    mbActivateLocalizationMode(false),			//没有这个模式转换标志
-    mbDeactivateLocalizationMode(false)		//没有这个模式转换标志
+    mSensor(sensor),
+    mpViewer(static_cast<Viewer*>(NULL)),		// 使用空指针初始化显示器
+    mbReset(false),							            // 无复位标志
+    mbActivateLocalizationMode(false),			// 没有这个模式转换标志
+    mbDeactivateLocalizationMode(false)		  // 没有这个模式转换标志
 {
-  // Output welcome message
-  cout << "\nORB-SLAM2 Copyright (C) 2014-2016 Raul Mur-Artal, University of Zaragoza." << endl
-       << "This program comes with ABSOLUTELY NO WARRANTY;" << endl
-       << "This is free software, and you are welcome to redistribute it" << endl
-       << "under certain conditions. See LICENSE.txt." << endl << endl;
 
-  // 输出当前传感器类型
-  cout << "Input sensor was set to: ";
-
-  if(mSensor==MONOCULAR)
-    cout << "Monocular" << endl;
-  else if(mSensor==STEREO)
-    cout << "Stereo" << endl;
-  else if(mSensor==RGBD)
-    cout << "RGB-D" << endl;
-
-  // Check settings file
-  // 使用opencv自带参数读取工具 读取参数
-  cv::FileStorage fsSettings(strSettingsFile.c_str(), 	//将配置文件名转换成为字符串
-                             cv::FileStorage::READ);		//只读
-  //如果打开失败，就输出调试信息
-  if(!fsSettings.isOpened())
+  // Output welcome message 输出当前传感器类型
   {
-    cerr << "Failed to open settings file at: " << strSettingsFile << endl;
-    //然后退出
-    exit(-1);
+    std::cout << "\nORB-SLAM2 Copyright (C) 2014-2016 Raul Mur-Artal, University of Zaragoza." << endl
+              << "This program comes with ABSOLUTELY NO WARRANTY;" << endl
+              << "This is free software, and you are welcome to redistribute it" << endl
+              << "under certain conditions. See LICENSE.txt." << endl << endl;
+    std::cout << "Input sensor was set to: ";
+    if(mSensor==MONOCULAR)
+      cout << "Monocular" << endl;
+    else if(mSensor==STEREO)
+      cout << "Stereo" << endl;
+    else if(mSensor==RGBD)
+      cout << "RGB-D" << endl;
   }
 
-  // Load ORB Vocabulary
-  cout << endl << "Loading ORB Vocabulary. This could take a while..." << endl;
-  //建立一个新的ORB字典
-  mpVocabulary = new ORBVocabulary();
-  //获取字典加载状态
-  bool bVocLoad = mpVocabulary->loadFromTextFile(strVocFile);
-  //如果加载失败，就输出调试信息
-  if(!bVocLoad)
+  // step 1 : Check settings file
   {
-    cerr << "Wrong path to vocabulary. " << endl;
-    cerr << "Falied to open at: " << strVocFile << endl;
-    //然后退出
-    exit(-1);
+    // 使用opencv自带参数读取工具 读取参数 如果打开失败，就输出调试信息
+    cv::FileStorage fsSettings(strSettingsFile.c_str(),  //将配置文件名转换成为字符串
+                               cv::FileStorage::READ);    //只读
+    if (!fsSettings.isOpened())
+    {
+      cerr << "Failed to open settings file at: " << strSettingsFile << endl;
+      exit(-1);
+    }
   }
-  //否则则说明加载成功
-  cout << "Vocabulary loaded!" << endl << endl;
+  // step 2 : Load ORB Vocabulary
+  {
+    cout << endl << "Loading ORB Vocabulary. This could take a while..." << endl;
+    // 建立一个新的ORB字典
+    mpVocabulary = new ORBVocabulary();
+    // 获取字典加载状态 如果加载失败，就输出调试信息
+    bool bVocLoad = mpVocabulary->loadFromTextFile(strVocFile);
+    if(!bVocLoad)
+    {
+      cerr << "Wrong path to vocabulary. " << endl;
+      cerr << "Falied to open at: " << strVocFile << endl;
+      exit(-1);
+    }
+    cout << "Vocabulary loaded!" << endl << endl;
+  }
 
-  // Create KeyFrame Database
+  // step 3 : Create KeyFrame Database (关键帧词袋数据)
   mpKeyFrameDatabase = new KeyFrameDatabase(*mpVocabulary);
 
-  // Create the Map
+  // step 4 : Create the Map (初始化地图，包括地图点及关键帧)
   mpMap = new Map();
 
-  // Create Drawers. These are used by the Viewer
-  // 这里的帧绘制器和地图绘制器将会被可视化的Viewer所使用
+  // step 5 : Create Drawers. These are used by the Viewer
   mpFrameDrawer = new FrameDrawer(mpMap);
   mpMapDrawer = new MapDrawer(mpMap, strSettingsFile);
 
-  // Initialize the Tracking thread （在本主进程中初始化追踪线程）
+  // step 6 : Initialize the Tracking thread （在本主进程中初始化追踪类）
   // (it will live in the main thread of execution, the one that called this constructor)
-  mpTracker = new Tracking(this,						            //现在还不是很明白为什么这里还需要一个this指针
-                           mpVocabulary,				        //字典
-                           mpFrameDrawer, 			//帧绘制器
-                           mpMapDrawer,				  //地图绘制器
-                           mpMap, 					          //地图
-                           mpKeyFrameDatabase, 		  //关键帧地图
-                           strSettingsFile, 		//设置文件路径
-                           mSensor);					        //传感器类型
+  mpTracker = new Tracking(this,						            // 现在还不是很明白为什么这里还需要一个this指针
+                           mpVocabulary,				        // 字典
+                           mpFrameDrawer, 			// 帧绘制器
+                           mpMapDrawer,				  // 地图绘制器
+                           mpMap, 					            // 地图
+                           mpKeyFrameDatabase, 		    // 关键帧地图
+                           strSettingsFile, 		// 设置文件路径
+                           mSensor);					        // 传感器类型
 
-  //初始化局部建图线程并运行
-  //Initialize the Local Mapping thread and launch
-  mpLocalMapper = new LocalMapping(mpMap, 				            //指定使iomanip
+  // step 7 : Initialize the Local Mapping thread and launch （初始化局部建图线程并运行）
+  mpLocalMapper = new LocalMapping(mpMap,
                                    mSensor==MONOCULAR);	// WHY ? 为什么这个要设置成为MONOCULAR？？？
-  //运行这个局部建图线程
-  mptLocalMapping = new thread(&ORB_SLAM2::LocalMapping::Run,	//这个线程会调用的函数
-                               mpLocalMapper);				//这个调用函数的参数
+  // 创建局部建图线程,调用 LocalMapping::Run() 开始运行
+  mptLocalMapping = new thread( &ORB_SLAM2::LocalMapping::Run,mpLocalMapper);
 
-  //Initialize the Loop Closing thread and launchiomanip
-  mpLoopCloser = new LoopClosing(mpMap, 						//地图
-                                 mpKeyFrameDatabase, 			//关键帧数据库
-                                 mpVocabulary, 				//ORB字典
-                                 mSensor!=MONOCULAR);			//当前的传感器是否是单目
-  //创建回环检测线程
-  mptLoopClosing = new thread(&ORB_SLAM2::LoopClosing::Run,	//线程的主函数
-                              mpLoopCloser);					//该函数的参数
+  // step 8 : Initialize the Loop Closing thread and launch （初始化回环检测线程并运行）
+  mpLoopCloser = new LoopClosing(mpMap, 						       // 地图
+                                 mpKeyFrameDatabase, 			 // 关键帧数据库
+                                 mpVocabulary, 				   // ORB字典
+                                 mSensor!=MONOCULAR);	 //当前的传感器是否是单目
+  // 创建回环检测线程，调用 LoopClosing::Run() 开始运行
+  mptLoopClosing = new thread(&ORB_SLAM2::LoopClosing::Run,mpLoopCloser);
 
-  //Initialize the Viewer thread and launch
-  if(bUseViewer)
+  // step 9 : Initialize the Viewer thread and launch (初始化可视化线程并运行)
+  if( bUseViewer )
   {
-    //如果指定了，程序的运行过程中需要运行可视化部分
-    //新建viewer
+    // 如果指定了，程序的运行过程中需要运行可视化部分
+    // 新建viewer
     mpViewer = new Viewer(this, 			//又是这个
                           mpFrameDrawer,	//帧绘制器
                           mpMapDrawer,		//地图绘制器
                           mpTracker,		//追踪器
                           strSettingsFile);	//配置文件的访问路径
-    //新建viewer线程
+    // 新建viewer线程
     mptViewer = new thread(&Viewer::Run, mpViewer);
-    //给运动追踪器设置其查看器
+    // 给运动追踪器设置其查看器
     mpTracker->SetViewer(mpViewer);
   }
 
-  //Set pointers between threads
-  //设置进程间的指针
+  // step 10 : Set pointers between threads (设置进程间的指针)
   mpTracker->SetLocalMapper(mpLocalMapper);
   mpTracker->SetLoopClosing(mpLoopCloser);
-
   mpLocalMapper->SetTracker(mpTracker);
   mpLocalMapper->SetLoopCloser(mpLoopCloser);
-
   mpLoopCloser->SetTracker(mpTracker);
   mpLoopCloser->SetLocalMapper(mpLocalMapper);
 }
 
-//双目输入时的追踪器接口
+
+/**
+ * 双目输入时的追踪器接口
+ * @param imLeft
+ * @param imRight
+ * @param timestamp
+ * @return
+ */
 cv::Mat System::TrackStereo(const cv::Mat &imLeft, 		//左侧图像
                             const cv::Mat &imRight, 	//右侧图像
                             const double &timestamp)	//时间戳

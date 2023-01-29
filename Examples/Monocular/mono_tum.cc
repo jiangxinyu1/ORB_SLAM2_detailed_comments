@@ -31,7 +31,8 @@
 using namespace std;
 
 
-void LoadImages(const string &strFile, vector<string> &vstrImageFilenames,
+void LoadImages(const string &strFile,
+                vector<string> &vstrImageFilenames,
                 vector<double> &vTimestamps);
 
 int main(int argc, char **argv)
@@ -44,7 +45,7 @@ int main(int argc, char **argv)
     return 1;
   }
 
-  // Retrieve paths to images
+  // step 1 ： Retrieve paths to images
   vector<string> vstrImageFilenames;
   vector<double> vTimestamps;
   string strFile = string(argv[3])+"/rgb.txt";
@@ -52,13 +53,15 @@ int main(int argc, char **argv)
 
   int nImages = vstrImageFilenames.size();
 
-  // Create SLAM system. It initializes all system threads and gets ready to process frames.
-  ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::MONOCULAR,true);
+  // step 2: Create SLAM system. It initializes all system threads and gets ready to process frames.
+  ORB_SLAM2::System SLAM(argv[1],
+                         argv[2],
+                         ORB_SLAM2::System::MONOCULAR,
+                         true);
 
   // Vector for tracking time statistics
   vector<float> vTimesTrack;
   vTimesTrack.resize(nImages);
-
   cout << endl << "-------" << endl;
   cout << "Start processing sequence ..." << endl;
   cout << "Images in the sequence: " << nImages << endl << endl;
