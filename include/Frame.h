@@ -345,7 +345,7 @@ public:
     std::vector<cv::KeyPoint> mvKeys;
     ///原始右图像提取出的特征点（未校正）
     std::vector<cv::KeyPoint> mvKeysRight;
-	///校正mvKeys后的特征点
+    ///校正mvKeys后的特征点
     std::vector<cv::KeyPoint> mvKeysUn;
 
     

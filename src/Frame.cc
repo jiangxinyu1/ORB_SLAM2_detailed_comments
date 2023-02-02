@@ -603,7 +603,11 @@ bool Frame::isInFrustum(MapPoint *pMP, float viewingCosLimit)
  * @param[in] maxLevel              最大金字塔层级
  * @return vector<size_t>           返回搜索到的候选匹配点id
  */
-vector<size_t> Frame::GetFeaturesInArea(const float &x, const float  &y, const float  &r, const int minLevel, const int maxLevel) const
+vector<size_t> Frame::GetFeaturesInArea(const float &x,
+                                        const float &y,
+                                        const float &r,
+                                        const int minLevel,
+                                        const int maxLevel) const
 {
   // 存储搜索结果的vector
   vector<size_t> vIndices;

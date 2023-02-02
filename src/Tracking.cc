@@ -894,81 +894,73 @@ void Tracking::MonocularInitialization()
   // Step 1 如果单目初始器还没有被创建，则创建。后面如果重新初始化时会清掉这个
   if(!mpInitializer)
   {
-    // Set Reference Frame
-    // 单目初始帧的特征点数必须大于100
+    // Set Reference Frame (单目初始帧的特征点数必须大于100)
     if(mCurrentFrame.mvKeys.size()>100)
     {
       // 初始化需要两帧，分别是mInitialFrame，mCurrentFrame
       mInitialFrame = Frame(mCurrentFrame);
-      // 用当前帧更新上一帧
       mLastFrame = Frame(mCurrentFrame);
       // mvbPrevMatched  记录"上一帧"所有特征点
       mvbPrevMatched.resize(mCurrentFrame.mvKeysUn.size());
-      for(size_t i=0; i<mCurrentFrame.mvKeysUn.size(); i++)
+      for(size_t i=0; i<mCurrentFrame.mvKeysUn.size(); i++){
         mvbPrevMatched[i]=mCurrentFrame.mvKeysUn[i].pt;
-
-      // 删除前判断一下，来避免出现段错误。不过在这里是多余的判断
-      // 不过在这里是多余的判断，因为前面已经判断过了
-      if(mpInitializer)
-        delete mpInitializer;
-
+      }
+      // 删除前判断一下，来避免出现段错误 不过在这里是多余的判断，因为前面已经判断过了
+      if(mpInitializer) {delete mpInitializer;}
       // 由当前帧构造初始器 sigma:1.0 iterations:200
       mpInitializer =  new Initializer(mCurrentFrame,1.0,200);
-
       // 初始化为-1 表示没有任何匹配。这里面存储的是匹配的点的id
-      fill(mvIniMatches.begin(),mvIniMatches.end(),-1);
-
+      std::fill(mvIniMatches.begin(),mvIniMatches.end(),-1);
       return;
     }
   }
-  else    //如果单目初始化器已经被创建
+  //如果单目初始化器已经被创建
+  else
   {
-    // Try to initialize
-    // Step 2 如果当前帧特征点数太少（不超过100），则重新构造初始器
-    // NOTICE 只有连续两帧的特征点个数都大于100时，才能继续进行初始化过程
+    // Step 2 : Try to initialize
+    // 保证连续两帧的特征点数目都大于100，否则重新初始化
     if((int)mCurrentFrame.mvKeys.size()<=100)
     {
       delete mpInitializer;
       mpInitializer = static_cast<Initializer*>(NULL);
-      fill(mvIniMatches.begin(),mvIniMatches.end(),-1);
+      std::fill(mvIniMatches.begin(),mvIniMatches.end(),-1);
       return;
     }
 
-    // Find correspondences
-    // Step 3 在mInitialFrame与mCurrentFrame中找匹配的特征点对
-    ORBmatcher matcher(
-        0.9,        //最佳的和次佳特征点评分的比值阈值，这里是比较宽松的，跟踪时一般是0.7
-        true);      //检查特征点的方向
+    // Step 3 : Find correspondences (在mInitialFrame与mCurrentFrame中找匹配的特征点对)
+    // (1) 构建特征匹配器
+    ORBmatcher matcher(0.9,        // 最佳的和次佳特征点评分的比值阈值，这里是比较宽松的，跟踪时一般是0.7
+                       true);     // 检查特征点的方向
 
-    // 对 mInitialFrame,mCurrentFrame 进行特征点匹配
+    // (2) 对 mInitialFrame,mCurrentFrame 进行特征点匹配
     // mvbPrevMatched为参考帧的特征点坐标，初始化存储的是mInitialFrame中特征点坐标，匹配后存储的是匹配好的当前帧的特征点坐标
     // mvIniMatches 保存参考帧F1中特征点是否匹配上，index保存是F1对应特征点索引，值保存的是匹配好的F2特征点索引
-    int nmatches = matcher.SearchForInitialization(
-        mInitialFrame,mCurrentFrame,    //初始化时的参考帧和当前帧
-        mvbPrevMatched,                 //在初始化参考帧中提取得到的特征点
-        mvIniMatches,                   //保存匹配关系
-        100);                           //搜索窗口大小
+    int nmatches = matcher.SearchForInitialization(mInitialFrame,  // 参考帧
+                                                   mCurrentFrame,  // 当前帧
+                                                   mvbPrevMatched, // 在初始化参考帧中提取得到的特征点
+                                                   mvIniMatches,   // 保存匹配关系
+                                                   100);   // 搜索窗口大小
 
-    // Check if there are enough correspondences
-    // Step 4 验证匹配结果，如果初始化的两帧之间的匹配点太少，重新初始化
+    // Step 4 : Check if there are enough correspondences (验证匹配结果，如果初始化的两帧之间的匹配点太少，重新初始化)
     if(nmatches<100)
     {
       delete mpInitializer;
-      mpInitializer = static_cast<Initializer*>(NULL);
+      mpInitializer = static_cast<Initializer*>(nullptr);
       return;
     }
 
+    // Step 5 通过H模型或F模型进行单目初始化，得到两帧间相对运动、初始MapPoints
     cv::Mat Rcw; // Current Camera Rotation
     cv::Mat tcw; // Current Camera Translation
-    vector<bool> vbTriangulated; // Triangulated Correspondences (mvIniMatches)
-
-    // Step 5 通过H模型或F模型进行单目初始化，得到两帧间相对运动、初始MapPoints
-    if(mpInitializer->Initialize(
-        mCurrentFrame,      //当前帧
-        mvIniMatches,       //当前帧和参考帧的特征点的匹配关系
-        Rcw, tcw,           //初始化得到的相机的位姿
-        mvIniP3D,           //进行三角化得到的空间点集合
-        vbTriangulated))    //以及对应于mvIniMatches来讲,其中哪些点被三角化了
+    // Triangulated Correspondences (mvIniMatches)
+    std::vector<bool> vbTriangulated;
+    // 单目的初始化函数
+    if(mpInitializer->Initialize(mCurrentFrame, // 当前帧
+                                 mvIniMatches,    // 当前帧和参考帧的特征点的匹配关系
+                                 Rcw,
+                                 tcw,                // 初始化得到的相机的位姿
+                                 mvIniP3D,           // 进行三角化得到的空间点集合
+                                 vbTriangulated))    // 以及对应于mvIniMatches来讲,其中哪些点被三角化了
     {
       // Step 6 初始化成功后，删除那些无法进行三角化的匹配点
       for(size_t i=0, iend=mvIniMatches.size(); i<iend;i++)
