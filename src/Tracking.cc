@@ -440,7 +440,7 @@ cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im,
 /**
  * @brief Main tracking function. It is independent of the input sensor.
  * track包含两部分：估计运动、跟踪局部地图
- * Step 1：初始化
+ * Step 1：地图初始化
  * Step 2：跟踪
  * Step 3：记录位姿信息，用于轨迹复现
  */
@@ -464,14 +464,14 @@ void Tracking::Track()
   // 回答：主要耗时在构造帧中特征点的提取和匹配部分,在那个时候地图是没有被上锁的,有足够的时间更新地图
   unique_lock<mutex> lock(mpMap->mMutexMapUpdate);
 
-  // Step 1：地图初始化
+  // step 1：地图初始化
   if(mState==NOT_INITIALIZED)
   {
     if(mSensor==System::STEREO || mSensor==System::RGBD)
-      //双目RGBD相机的初始化共用一个函数
+      // 双目RGBD相机的初始化共用一个函数
       StereoInitialization();
     else
-      //单目初始化
+      // 单目初始化
       MonocularInitialization();
 
     //更新帧绘制器中存储的最新状态
