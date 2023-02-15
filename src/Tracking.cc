@@ -918,8 +918,7 @@ void Tracking::MonocularInitialization()
   //如果单目初始化器已经被创建
   else
   {
-    // Step 2 : Try to initialize
-    // 保证连续两帧的特征点数目都大于100，否则重新初始化
+    // Step 2 : Try to initialize 保证连续两帧的特征点数目都大于100，否则重新初始化
     if((int)mCurrentFrame.mvKeys.size()<=100)
     {
       delete mpInitializer;
@@ -973,8 +972,8 @@ void Tracking::MonocularInitialization()
         }
       }
 
-      // Set Frame Poses
-      // Step 7 将初始化的第一帧作为世界坐标系，因此第一帧变换矩阵为单位矩阵
+      // Step 7: 初始化成功后，设置参考帧及当前帧的pose
+      // 将初始化的第一帧作为世界坐标系，因此第一帧变换矩阵为单位矩阵
       mInitialFrame.SetPose(cv::Mat::eye(4,4,CV_32F));
       // 由Rcw和tcw构造Tcw,并赋值给mTcw，mTcw为世界坐标系到相机坐标系的变换矩阵
       cv::Mat Tcw = cv::Mat::eye(4,4,CV_32F);
@@ -982,11 +981,12 @@ void Tracking::MonocularInitialization()
       tcw.copyTo(Tcw.rowRange(0,3).col(3));
       mCurrentFrame.SetPose(Tcw);
 
-      // Step 8 创建初始化地图点MapPoints
+      // Step 8: 初始化成功后，创建初始化地图点MapPoints
       // Initialize函数会得到mvIniP3D，
       // mvIniP3D是cv::Point3f类型的一个容器，是个存放3D点的临时变量，
       // CreateInitialMapMonocular将3D点包装成MapPoint类型存入KeyFrame和Map中
       CreateInitialMapMonocular();
+
     }//当初始化成功的时候进行
   }//如果单目初始化器已经被创建
 }
@@ -997,69 +997,63 @@ void Tracking::MonocularInitialization()
  */
 void Tracking::CreateInitialMapMonocular()
 {
-  // Create KeyFrames 认为单目初始化时候的参考帧和当前帧都是关键帧
+  // step 0 ：Create KeyFrames 认为单目初始化时候的参考帧和当前帧都是关键帧
   KeyFrame* pKFini = new KeyFrame(mInitialFrame,mpMap,mpKeyFrameDB);  // 第一帧
   KeyFrame* pKFcur = new KeyFrame(mCurrentFrame,mpMap,mpKeyFrameDB);  // 第二帧
 
-  // Step 1 将初始关键帧,当前关键帧的描述子转为BoW
+  // step 1 : 将初始关键帧,当前关键帧的描述子转为BoW词袋
   pKFini->ComputeBoW();
   pKFcur->ComputeBoW();
 
-  // Insert KFs in the map
-  // Step 2 将关键帧插入到地图
+  // step 2 : Insert KFs in the map 将关键帧插入到地图(地图类存储所有关键帧)
   mpMap->AddKeyFrame(pKFini);
   mpMap->AddKeyFrame(pKFcur);
 
-  // Create MapPoints and asscoiate to keyframes
-  // Step 3 用初始化得到的3D点来生成地图点MapPoints
-  //  mvIniMatches[i] 表示初始化两帧特征点匹配关系。
-  //  具体解释：i表示帧1中关键点的索引值，vMatches12[i]的值为帧2的关键点索引值,没有匹配关系的话，vMatches12[i]值为 -1
-  for(size_t i=0; i<mvIniMatches.size();i++)
+  // step 3 : Create MapPoints and asscoiate to keyframes 用初始化得到的3D点来生成地图点MapPoints
+
+  // 根据第一帧特征点的id，遍历所有特征点、3D点
+  for(size_t i = 0; i < mvIniMatches.size(); i++)
   {
-    // 没有匹配，跳过
     if(mvIniMatches[i]<0)
+    {
+      // 跳过没有匹配关系的特征点
       continue;
+    }
+    // step 3.1 : 用3D点构造MapPoint，添加到关键帧里面
+    // Create MapPoint. 根据第一帧特征点的id找到对应的三角化的点，创建地图点
+    cv::Mat worldPos(mvIniP3D[i]); // opencv 构造： std::vector<cv::Point3f>
+    MapPoint* pMP = new MapPoint(worldPos,pKFcur,mpMap);
+    // 向两个keyFrame中添加地图点 (? 但是这个时候地图点的属性还没设置完，就填进去啦？)
+    pKFini->AddMapPoint(pMP,i);
+    pKFcur->AddMapPoint(pMP,mvIniMatches[i]);
 
-    //Create MapPoint.
-    // 用三角化点初始化为空间点的世界坐标
-    cv::Mat worldPos(mvIniP3D[i]);
-
-    // Step 3.1 用3D点构造MapPoint
-    MapPoint* pMP = new MapPoint(
-        worldPos,
-        pKFcur,
-        mpMap);
-
-    // Step 3.2 为该MapPoint添加属性：
+    // step 3.2 : 为该MapPoint添加属性：
     // a.观测到该MapPoint的关键帧
     // b.该MapPoint的描述子
     // c.该MapPoint的平均观测方向和深度范围
 
-    // 表示该KeyFrame的2D特征点和对应的3D地图点
-    pKFini->AddMapPoint(pMP,i);
-    pKFcur->AddMapPoint(pMP,mvIniMatches[i]);
-
-    // a.表示该MapPoint可以被哪个KeyFrame的哪个特征点观测到
+    // Note ：记录该地图点可以被当前两个关键帧观测到，并记录特征点在关键帧中的索引，更新地图点被观测到的个数
     pMP->AddObservation(pKFini,i);
     pMP->AddObservation(pKFcur,mvIniMatches[i]);
 
     // b.从众多观测到该MapPoint的特征点中挑选最有代表性的描述子
     pMP->ComputeDistinctiveDescriptors();
+
     // c.更新该MapPoint平均观测方向以及观测距离的范围
     pMP->UpdateNormalAndDepth();
 
-    //Fill Current Frame structure
-    //mvIniMatches下标i表示在初始化参考帧中的特征点的序号
-    //mvIniMatches[i]是初始化当前帧中的特征点的序号
+    // Fill Current Frame structure
+    // mvIniMatches下标i表示在初始化参考帧中的特征点的序号
+    // mvIniMatches[i]是初始化当前帧中的特征点的序号
     mCurrentFrame.mvpMapPoints[mvIniMatches[i]] = pMP;
     mCurrentFrame.mvbOutlier[mvIniMatches[i]] = false;
 
-    //Add to Map
+    // Add to Map (添加当前地图点到全局地图)
     mpMap->AddMapPoint(pMP);
-  }
+  } // for
 
   // Update Connections
-  // Step 3.3 更新关键帧间的连接关系
+  // step 4 更新关键帧间的连接关系
   // 在3D点和关键帧之间建立边，每个边有一个权重，边的权重是该关键帧与当前帧公共3D点的个数
   pKFini->UpdateConnections();
   pKFcur->UpdateConnections();
@@ -1067,11 +1061,11 @@ void Tracking::CreateInitialMapMonocular()
   // Bundle Adjustment
   cout << "New Map created with " << mpMap->MapPointsInMap() << " points" << endl;
 
-  // Step 4 全局BA优化，同时优化所有位姿和三维点
+  // step 5 全局BA优化，同时优化所有位姿和三维点
   Optimizer::GlobalBundleAdjustemnt(mpMap,20);
 
   // Set median depth to 1
-  // Step 5 取场景的中值深度，用于尺度归一化
+  // step 6 取场景的中值深度，用于尺度归一化
   // 为什么是 pKFini 而不是 pKCur ? 答：都可以的，内部做了位姿变换了
   float medianDepth = pKFini->ComputeSceneMedianDepth(2);
   float invMedianDepth = 1.0f/medianDepth;
@@ -1084,7 +1078,7 @@ void Tracking::CreateInitialMapMonocular()
     return;
   }
 
-  // Step 6 将两帧之间的变换归一化到平均深度1的尺度下
+  // step 7 将两帧之间的变换归一化到平均深度1的尺度下
   // Scale initial baseline
   cv::Mat Tc2w = pKFcur->GetPose();
   // x/z y/z 将z归一化到1
@@ -1092,7 +1086,7 @@ void Tracking::CreateInitialMapMonocular()
   pKFcur->SetPose(Tc2w);
 
   // Scale points
-  // Step 7 把3D点的尺度也归一化到1
+  // step 8 把3D点的尺度也归一化到1
   // 为什么是pKFini? 是不是就算是使用 pKFcur 得到的结果也是相同的? 答：是的，因为是同样的三维点
   vector<MapPoint*> vpAllMapPoints = pKFini->GetMapPointMatches();
   for(size_t iMP=0; iMP<vpAllMapPoints.size(); iMP++)
@@ -1104,7 +1098,7 @@ void Tracking::CreateInitialMapMonocular()
     }
   }
 
-  //  Step 8 将关键帧插入局部地图，更新归一化后的位姿、局部地图点
+  // step 9 将关键帧插入局部地图，更新归一化后的位姿、局部地图点
   mpLocalMapper->InsertKeyFrame(pKFini);
   mpLocalMapper->InsertKeyFrame(pKFcur);
 
