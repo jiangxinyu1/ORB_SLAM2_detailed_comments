@@ -2091,14 +2091,11 @@ int ORBmatcher::DescriptorDistance(const cv::Mat &a, const cv::Mat &b)
 {
   const int *pa = a.ptr<int32_t>();
   const int *pb = b.ptr<int32_t>();
-
   int dist=0;
-
   // 8*32=256bit
-
   for(int i=0; i<8; i++, pa++, pb++)
   {
-    unsigned  int v = *pa ^ *pb;        // 相等为0,不等为1
+    unsigned  int v = *pa ^ *pb; // 相等为0,不等为1
     // 下面的操作就是计算其中bit为1的个数了,这个操作看上面的链接就好
     // 其实我觉得也还阔以直接使用8bit的查找表,然后做32次寻址操作就完成了;不过缺点是没有利用好CPU的字长
     v = v - ((v >> 1) & 0x55555555);

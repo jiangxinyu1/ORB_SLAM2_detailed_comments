@@ -413,80 +413,62 @@ MapPoint* KeyFrame::GetMapPoint(const size_t &idx)
  */
 void KeyFrame::UpdateConnections()
 {
-  // 关键帧-权重，权重为其它关键帧与当前关键帧共视地图点的个数，也称为共视程度
-  map<KeyFrame*,int> KFcounter;
-  vector<MapPoint*> vpMP;
-
+  // 先获得该关键帧的所有地图点
+  std::vector<MapPoint*> vpMP;
   {
-    // 获得该关键帧的所有地图点
     unique_lock<mutex> lockMPs(mMutexFeatures);
     vpMP = mvpMapPoints;
   }
 
-  //For all map points in keyframe check in which other keyframes are they seen
-  //Increase counter for those keyframes
-  // Step 1 通过地图点被关键帧观测来间接统计关键帧之间的共视程度
-  // 统计每一个地图点都有多少关键帧与当前关键帧存在共视关系，统计结果放在KFcounter
-  for(vector<MapPoint*>::iterator vit=vpMP.begin(), vend=vpMP.end(); vit!=vend; vit++)
+  // step 1 : 统计当前关键帧与其他关键帧的共视关系
+  // Note : 统计方法：找当前 frame 的 每个 MP,如果这个 MP 又被 keyFrame_i 观测过，
+  //  frame 和 keyFrame_i 共同观测过MP的数目+1：frame.KFcounter[keyFrame_i*]++ ;
+  // 表示当前关键帧与其他关键帧的共视关系：关键帧i-与关键帧i的共视程度，与关键帧i共视地图点MP的个数
+  std::map<KeyFrame*,int> KFcounter;
+  for(auto pMP : vpMP)
   {
-    MapPoint* pMP = *vit;
-
-    if(!pMP)
-      continue;
-
-    if(pMP->isBad())
-      continue;
-
+    if(!pMP) { continue;}
+    if(pMP->isBad()) { continue;}
     // 对于每一个地图点，observations记录了可以观测到该地图点的所有关键帧
-    map<KeyFrame*,size_t> observations = pMP->GetObservations();
-
-    for(map<KeyFrame*,size_t>::iterator mit=observations.begin(), mend=observations.end(); mit!=mend; mit++)
+    std::map<KeyFrame*,size_t> observations = pMP->GetObservations();
+    for(auto & observation : observations)
     {
-      // 除去自身，自己与自己不算共视
-      if(mit->first->mnId==mnId)
-        continue;
-      // 这里的操作非常精彩！
-      // map[key] = value，当要插入的键存在时，会覆盖键对应的原来的值。如果键不存在，则添加一组键值对
-      // mit->first 是地图点看到的关键帧，同一个关键帧看到的地图点会累加到该关键帧计数
-      // 所以最后KFcounter 第一个参数表示某个关键帧，第2个参数表示该关键帧看到了多少当前帧的地图点，也就是共视程度
-      KFcounter[mit->first]++;
+      // skip self
+      if(observation.first->mnId==mnId) { continue;}
+      // map[key] = value，当要插入的key存在时，会覆盖键对应的原来的value。如果键不存在，则添加一组键值对
+      KFcounter[observation.first]++;
     }
   }
+  // 没有共视关系，直接退出 (This should not happen)
+  if(KFcounter.empty()) {return;}
 
-  // This should not happen
-  // 没有共视关系，直接退出
-  if(KFcounter.empty())
-    return;
-
-  // If the counter is greater than threshold add connection
-  // In case no keyframe counter is over threshold add the one with maximum counter
-  int nmax=0; // 记录最高的共视程度
-  KeyFrame* pKFmax=NULL;
+  // step 2 ：找到与当前关键帧共视程度最高的关键帧
+  // 记录最高的共视程度
+  int nmax = 0;
+  KeyFrame* pKFmax = nullptr;
   // 至少有15个共视地图点才会添加共视关系
   int th = 15;
-
-  // vPairs记录与其它关键帧共视帧数大于th的关键帧
+  // vPairs记录与其它关键帧共视帧数大于阈值th的关键帧
   // pair<int,KeyFrame*>将关键帧的权重写在前面，关键帧写在后面方便后面排序
-  vector<pair<int,KeyFrame*> > vPairs;
+  std::vector<std::pair<int,KeyFrame*> > vPairs;
   vPairs.reserve(KFcounter.size());
-  // Step 2 找到对应权重最大的关键帧（共视程度最高的关键帧）
-  for(map<KeyFrame*,int>::iterator mit=KFcounter.begin(), mend=KFcounter.end(); mit!=mend; mit++)
+  for(auto & mit : KFcounter)
   {
-    if(mit->second>nmax)
+    // 更新最大共视关系
+    if( mit.second > nmax )
     {
-      nmax=mit->second;
-      pKFmax=mit->first;
+      nmax = mit.second;
+      pKFmax = mit.first;
     }
-
     // 建立共视关系至少需要大于等于th个共视地图点
-    if(mit->second>=th)
+    if(mit.second >= th)
     {
       // 对应权重需要大于阈值，对这些关键帧建立连接
-      vPairs.push_back(make_pair(mit->second,mit->first));
+      vPairs.emplace_back(mit.second,mit.first);
       // 对方关键帧也要添加这个信息
       // 更新KFcounter中该关键帧的mConnectedKeyFrameWeights
       // 更新其它KeyFrame的mConnectedKeyFrameWeights，更新其它关键帧与当前帧的连接权重
-      (mit->first)->AddConnection(this,mit->second);
+      (mit.first)->AddConnection(this,mit.second);
     }
   }
 
@@ -496,7 +478,7 @@ void KeyFrame::UpdateConnections()
     // 如果每个关键帧与它共视的关键帧的个数都少于th，
     // 那就只更新与其它关键帧共视程度最高的关键帧的mConnectedKeyFrameWeights
     // 这是对之前th这个阈值可能过高的一个补丁
-    vPairs.push_back(make_pair(nmax,pKFmax));
+    vPairs.emplace_back(nmax,pKFmax);
     pKFmax->AddConnection(this,nmax);
   }
 
@@ -515,14 +497,13 @@ void KeyFrame::UpdateConnections()
 
   {
     unique_lock<mutex> lockCon(mMutexConnections);
-
     // mspConnectedKeyFrames = spConnectedKeyFrames;
     // 更新当前帧与其它关键帧的连接权重
     mConnectedKeyFrameWeights = KFcounter;
     mvpOrderedConnectedKeyFrames = vector<KeyFrame*>(lKFs.begin(),lKFs.end());
     mvOrderedWeights = vector<int>(lWs.begin(), lWs.end());
 
-    // Step 5 更新生成树的连接
+    // step 5 : 更新生成树的连接
     if(mbFirstConnection && mnId!=0)
     {
       // 初始化该关键帧的父关键帧为共视程度最高的那个关键帧
@@ -865,8 +846,13 @@ cv::Mat KeyFrame::UnprojectStereo(int i)
     return cv::Mat();
 }
 
-// Compute Scene Depth (q=2 median). Used in monocular. 评估当前关键帧场景深度，q=2表示中值. 只是在单目情况下才会使用
-// 其实过程就是对当前关键帧下所有地图点的深度进行从小到大排序,返回距离头部其中1/q处的深度值作为当前场景的平均深度
+/**
+ * Compute Scene Depth (q=2 median). Used in monocular.
+ * 评估当前关键帧场景深度，q=2表示中值. 只是在单目情况下才会使用
+ * 其实过程就是对当前关键帧下所有地图点的深度进行从小到大排序,返回距离头部其中1/q处的深度值作为当前场景的平均深度
+ * @param q
+ * @return
+ */
 float KeyFrame::ComputeSceneMedianDepth(const int q)
 {
   vector<MapPoint*> vpMapPoints;

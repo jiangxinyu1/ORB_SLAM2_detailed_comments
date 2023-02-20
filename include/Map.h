@@ -144,10 +144,10 @@ public:
 
 protected:
     // 存储所有的地图点
-    std::set<MapPoint*> mspMapPoints; 
+    std::set<MapPoint*> mspMapPoints;
 
     // 存储所有的关键帧
-    std::set<KeyFrame*> mspKeyFrames; 
+    std::set<KeyFrame*> mspKeyFrames;
 
     ///参考地图点
     std::vector<MapPoint*> mvpReferenceMapPoints;

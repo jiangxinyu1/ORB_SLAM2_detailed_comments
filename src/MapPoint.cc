@@ -83,6 +83,7 @@ MapPoint::MapPoint(const cv::Mat &Pos, Map* pMap, Frame* pFrame, const int &idxF
     mnCorrectedReference(0), mnBAGlobalForKF(0), mpRefKF(static_cast<KeyFrame*>(NULL)), mnVisible(1),
     mnFound(1), mbBad(false), mpReplaced(NULL), mpMap(pMap)
 {
+  // 地图点在世界系下的pose
   Pos.copyTo(mWorldPos);
   cv::Mat Ow = pFrame->GetCameraCenter();
   mNormalVector = mWorldPos - Ow;// 世界坐标系下相机到3D点的向量 (当前关键帧的观测方向)
@@ -374,46 +375,35 @@ float MapPoint::GetFoundRatio()
 void MapPoint::ComputeDistinctiveDescriptors()
 {
   // Retrieve all observed descriptors
-  vector<cv::Mat> vDescriptors;
+  std::vector<cv::Mat> vDescriptors;
+  //
+  std::map<KeyFrame*,size_t> observations;
 
-  map<KeyFrame*,size_t> observations;
-
-  // Step 1 获取该地图点所有有效的观测关键帧信息
+  // step 1 : 获取该地图点所有有效的观测关键帧信息
   {
     unique_lock<mutex> lock1(mMutexFeatures);
     if(mbBad)
       return;
-    observations=mObservations;
+    observations = mObservations;
   }
+  if(observations.empty()) {return;}
 
-  if(observations.empty())
-    return;
-
+  // step 2 : 获取观测到该地图点的所有关键帧对应的orb描述子，放到向量vDescriptors中
   vDescriptors.reserve(observations.size());
-
-  // Step 2 遍历观测到该地图点的所有关键帧，对应的orb描述子，放到向量vDescriptors中
-  for(map<KeyFrame*,size_t>::iterator mit=observations.begin(), mend=observations.end(); mit!=mend; mit++)
+  for(auto & observation : observations)
   {
-    // mit->first取观测到该地图点的关键帧
-    // mit->second取该地图点在关键帧中的索引
-    KeyFrame* pKF = mit->first;
-
+    // mit->first取观测到该地图点的关键帧 ; mit->second取该地图点在关键帧中的索引
+    KeyFrame* pKF = observation.first;
     if(!pKF->isBad())
       // 取对应的描述子向量
-      vDescriptors.push_back(pKF->mDescriptors.row(mit->second));
+      vDescriptors.push_back(pKF->mDescriptors.row(observation.second));
   }
+  if(vDescriptors.empty()){return;}
 
-  if(vDescriptors.empty())
-    return;
-
-  // Compute distances between them
-  // Step 3 计算这些描述子两两之间的距离
-  // N表示为一共多少个描述子
+  // step 3 : 计算这些描述子两两之间的距离 Compute distances between them
+  // 将Distances表述成一个对称的矩阵 float Distances[N][N];
   const size_t N = vDescriptors.size();
-
-  // 将Distances表述成一个对称的矩阵
-  // float Distances[N][N];
-  std::vector<std::vector<float> > Distances;
+  std::vector<std::vector<float>> Distances;
   Distances.resize(N, vector<float>(N, 0));
   for (size_t i = 0; i<N; i++)
   {
@@ -422,26 +412,25 @@ void MapPoint::ComputeDistinctiveDescriptors()
     // 计算并记录不同描述子距离
     for(size_t j=i+1;j<N;j++)
     {
-      int distij = ORBmatcher::DescriptorDistance(vDescriptors[i],vDescriptors[j]);
+      int distij = ORBmatcher::DescriptorDistance(vDescriptors[i],
+                                                  vDescriptors[j]);
       Distances[i][j]=distij;
       Distances[j][i]=distij;
     }
   }
 
-  // Take the descriptor with least median distance to the rest
-  // Step 4 选择最有代表性的描述子，它与其他描述子应该具有最小的距离中值
+  // step 4 : 选择最有代表性的描述子，它与其他描述子的距离中值(没有用平均值)最小
+  //  Take the descriptor with least median distance to the rest
   int BestMedian = INT_MAX;   // 记录最小的中值
   int BestIdx = 0;            // 最小中值对应的索引
-  for(size_t i=0;i<N;i++)
+  for(size_t i = 0; i < N; i++)
   {
     // 第i个描述子到其它所有描述子之间的距离
-    // vector<int> vDists(Distances[i],Distances[i]+N);
-    vector<int> vDists(Distances[i].begin(), Distances[i].end());
-    sort(vDists.begin(), vDists.end());
-
+    // std::vector<int> vDists(Distances[i],Distances[i]+N);
+    std::vector<int> vDists(Distances[i].begin(), Distances[i].end());
+    std::sort(vDists.begin(), vDists.end());
     // 获得中值
     int median = vDists[0.5*(N-1)];
-
     // 寻找最小的中值
     if(median<BestMedian)
     {
@@ -500,29 +489,25 @@ bool MapPoint::IsInKeyFrame(KeyFrame *pKF)
  */
 void MapPoint::UpdateNormalAndDepth()
 {
-  // Step 1 获得观测到该地图点的所有关键帧、坐标等信息
-  map<KeyFrame*,size_t> observations;
+  // step 1 : 获得观测到该地图点的所有关键帧、坐标等信息
+  std::map<KeyFrame*,size_t> observations;
   KeyFrame* pRefKF;
   cv::Mat Pos;
   {
     unique_lock<mutex> lock1(mMutexFeatures);
     unique_lock<mutex> lock2(mMutexPos);
-    if(mbBad)
-      return;
-
+    if(mbBad) { return; }
     observations=mObservations; // 获得观测到该地图点的所有关键帧
     pRefKF=mpRefKF;             // 观测到该点的参考关键帧（第一次创建时的关键帧）
     Pos = mWorldPos.clone();    // 地图点在世界坐标系中的位置
   }
+  if(observations.empty()) { return; }
 
-  if(observations.empty())
-    return;
-
-  // Step 2 计算该地图点的平均观测方向
+  // step 2 : 计算该地图点的平均观测方向
   // 能观测到该地图点的所有关键帧，对该点的观测方向归一化为单位向量，然后进行求和得到该地图点的朝向
   // 初始值为0向量，累加为归一化向量，最后除以总数n
   cv::Mat normal = cv::Mat::zeros(3,1,CV_32F);
-  int n=0;
+  int n = 0;
   for(auto & observation : observations)
   {
     KeyFrame* pKF = observation.first;
@@ -532,19 +517,26 @@ void MapPoint::UpdateNormalAndDepth()
     normal = normal + normali/cv::norm(normali);
     n++;
   }
-
-  cv::Mat PC = Pos - pRefKF->GetCameraCenter();                           // 参考关键帧相机指向地图点的向量（在世界坐标系下的表示）
-  const float dist = cv::norm(PC);                                        // 该点到参考关键帧相机的距离
-  const int level = pRefKF->mvKeysUn[observations[pRefKF]].octave;        // 观测到该地图点的当前帧的特征点在金字塔的第几层
-  const float levelScaleFactor =  pRefKF->mvScaleFactors[level];          // 当前金字塔层对应的尺度因子，scale^n，scale=1.2，n为层数
-  const int nLevels = pRefKF->mnScaleLevels;                              // 金字塔总层数，默认为8
+  // 参考关键帧相机指向地图点的向量（在世界坐标系下的表示）
+  cv::Mat PC = Pos - pRefKF->GetCameraCenter();
+  // 该点到参考关键帧相机的距离
+  const float dist = cv::norm(PC);
+  // 观测到该地图点的当前帧的特征点在金字塔的第几层
+  const int level = pRefKF->mvKeysUn[observations[pRefKF]].octave;
+  // 当前金字塔层对应的尺度因子，scale^n，scale=1.2，n为层数
+  const float levelScaleFactor =  pRefKF->mvScaleFactors[level];
+  // 金字塔总层数，默认为8
+  const int nLevels = pRefKF->mnScaleLevels;
 
   {
     unique_lock<mutex> lock3(mMutexPos);
     // 使用方法见PredictScale函数前的注释
-    mfMaxDistance = dist*levelScaleFactor;                              // 观测到该点的距离上限
-    mfMinDistance = mfMaxDistance/pRefKF->mvScaleFactors[nLevels-1];    // 观测到该点的距离下限
-    mNormalVector = normal/n;                                           // 获得地图点平均的观测方向
+    // 观测到该点的距离上限
+    mfMaxDistance = dist*levelScaleFactor;
+    // 观测到该点的距离下限
+    mfMinDistance = mfMaxDistance/pRefKF->mvScaleFactors[nLevels-1];
+    // 获得地图点平均的观测方向
+    mNormalVector = normal/n;
   }
 }
 

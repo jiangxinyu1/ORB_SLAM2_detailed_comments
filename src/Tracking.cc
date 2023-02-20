@@ -986,7 +986,6 @@ void Tracking::MonocularInitialization()
       // mvIniP3D是cv::Point3f类型的一个容器，是个存放3D点的临时变量，
       // CreateInitialMapMonocular将3D点包装成MapPoint类型存入KeyFrame和Map中
       CreateInitialMapMonocular();
-
     }//当初始化成功的时候进行
   }//如果单目初始化器已经被创建
 }
@@ -1010,7 +1009,6 @@ void Tracking::CreateInitialMapMonocular()
   mpMap->AddKeyFrame(pKFcur);
 
   // step 3 : Create MapPoints and asscoiate to keyframes 用初始化得到的3D点来生成地图点MapPoints
-
   // 根据第一帧特征点的id，遍历所有特征点、3D点
   for(size_t i = 0; i < mvIniMatches.size(); i++)
   {
@@ -1050,50 +1048,45 @@ void Tracking::CreateInitialMapMonocular()
 
     // Add to Map (添加当前地图点到全局地图)
     mpMap->AddMapPoint(pMP);
-  } // for
+  }// for
 
-  // Update Connections
-  // step 4 更新关键帧间的连接关系
-  // 在3D点和关键帧之间建立边，每个边有一个权重，边的权重是该关键帧与当前帧公共3D点的个数
+  // step 4 : 更新关键帧间的连接关系 Update Connections
+  // Note: 在3D点和关键帧之间建立边，每个边有一个权重，边的权重是该关键帧与当前帧公共3D点的个数
   pKFini->UpdateConnections();
   pKFcur->UpdateConnections();
 
-  // Bundle Adjustment
   cout << "New Map created with " << mpMap->MapPointsInMap() << " points" << endl;
 
-  // step 5 全局BA优化，同时优化所有位姿和三维点
+  // step 5 : Bundle Adjustment 全局BA优化，同时优化所有位姿和三维点
   Optimizer::GlobalBundleAdjustemnt(mpMap,20);
 
-  // Set median depth to 1
-  // step 6 取场景的中值深度，用于尺度归一化
+  // step 6 : 取场景的中值深度，用于尺度归一化 (Set median depth to 1)
   // 为什么是 pKFini 而不是 pKCur ? 答：都可以的，内部做了位姿变换了
   float medianDepth = pKFini->ComputeSceneMedianDepth(2);
   float invMedianDepth = 1.0f/medianDepth;
 
-  //两个条件,一个是平均深度要大于0,另外一个是在当前帧中被观测到的地图点的数目应该大于100
-  if(medianDepth<0 || pKFcur->TrackedMapPoints(1)<100)
+  // 两个条件,一个是平均深度要大于0,另外一个是在当前帧中被观测到的地图点的数目应该大于100
+  if(medianDepth < 0 || pKFcur->TrackedMapPoints(1)<100)
   {
     cout << "Wrong initialization, reseting..." << endl;
     Reset();
     return;
   }
 
-  // step 7 将两帧之间的变换归一化到平均深度1的尺度下
-  // Scale initial baseline
+  // step 7 : 将两帧之间的变换归一化到平均深度1的尺度下 (Scale initial baseline)
   cv::Mat Tc2w = pKFcur->GetPose();
   // x/z y/z 将z归一化到1
   Tc2w.col(3).rowRange(0,3) = Tc2w.col(3).rowRange(0,3)*invMedianDepth;
   pKFcur->SetPose(Tc2w);
 
-  // Scale points
-  // step 8 把3D点的尺度也归一化到1
+  // step 8 把3D点的尺度也归一化到 1 (Scale points)
   // 为什么是pKFini? 是不是就算是使用 pKFcur 得到的结果也是相同的? 答：是的，因为是同样的三维点
   vector<MapPoint*> vpAllMapPoints = pKFini->GetMapPointMatches();
-  for(size_t iMP=0; iMP<vpAllMapPoints.size(); iMP++)
+  for(auto & vpAllMapPoint : vpAllMapPoints)
   {
-    if(vpAllMapPoints[iMP])
+    if(vpAllMapPoint)
     {
-      MapPoint* pMP = vpAllMapPoints[iMP];
+      MapPoint* pMP = vpAllMapPoint;
       pMP->SetWorldPos(pMP->GetWorldPos()*invMedianDepth);
     }
   }
@@ -1122,7 +1115,7 @@ void Tracking::CreateInitialMapMonocular()
 
   mpMap->mvpKeyFrameOrigins.push_back(pKFini);
 
-  mState=OK;// 初始化成功，至此，初始化过程完成
+  mState=OK; // 初始化成功，至此，初始化过程完成
 }
 
 /*
