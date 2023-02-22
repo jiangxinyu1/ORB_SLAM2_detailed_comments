@@ -941,7 +941,7 @@ void Tracking::MonocularInitialization()
                                                    mvIniMatches,   // 保存匹配关系
                                                    100);   // 搜索窗口大小
 
-    // Step 4 : Check if there are enough correspondences (验证匹配结果，如果初始化的两帧之间的匹配点太少，重新初始化)
+    // step 4 : Check if there are enough correspondences (验证匹配结果，如果初始化的两帧之间的匹配点太少，重新初始化)
     if(nmatches<100)
     {
       delete mpInitializer;
@@ -949,7 +949,7 @@ void Tracking::MonocularInitialization()
       return;
     }
 
-    // Step 5 通过H模型或F模型进行单目初始化，得到两帧间相对运动、初始MapPoints
+    // step 5 通过H或F进行单目初始化，得到两帧间相对运动、初始MapPoints
     cv::Mat Rcw; // Current Camera Rotation
     cv::Mat tcw; // Current Camera Translation
     // Triangulated Correspondences (mvIniMatches)
@@ -1035,6 +1035,7 @@ void Tracking::CreateInitialMapMonocular()
     pMP->AddObservation(pKFcur,mvIniMatches[i]);
 
     // b.从众多观测到该MapPoint的特征点中挑选最有代表性的描述子
+    // 最有代表性的描述子与其他描述子的距离中值最小
     pMP->ComputeDistinctiveDescriptors();
 
     // c.更新该MapPoint平均观测方向以及观测距离的范围
@@ -1079,7 +1080,7 @@ void Tracking::CreateInitialMapMonocular()
   Tc2w.col(3).rowRange(0,3) = Tc2w.col(3).rowRange(0,3)*invMedianDepth;
   pKFcur->SetPose(Tc2w);
 
-  // step 8 把3D点的尺度也归一化到 1 (Scale points)
+  // step 8 : 把3D点的尺度也归一化到 1 (Scale points)
   // 为什么是pKFini? 是不是就算是使用 pKFcur 得到的结果也是相同的? 答：是的，因为是同样的三维点
   vector<MapPoint*> vpAllMapPoints = pKFini->GetMapPointMatches();
   for(auto & vpAllMapPoint : vpAllMapPoints)
@@ -1091,7 +1092,7 @@ void Tracking::CreateInitialMapMonocular()
     }
   }
 
-  // step 9 将关键帧插入局部地图，更新归一化后的位姿、局部地图点
+  // step 9 : 将关键帧插入局部地图，更新归一化后的位姿、局部地图点
   mpLocalMapper->InsertKeyFrame(pKFini);
   mpLocalMapper->InsertKeyFrame(pKFcur);
 
@@ -1535,7 +1536,7 @@ bool Tracking::NeedNewKeyFrame()
     for(int i =0; i<mCurrentFrame.N; i++)
     {
       // 深度值在有效范围内
-      if(mCurrentFrame.mvDepth[i]>0 && mCurrentFrame.mvDepth[i]<mThDepth)
+      if( mCurrentFrame.mvDepth[i] > 0 && mCurrentFrame.mvDepth[i] < mThDepth )
       {
         if(mCurrentFrame.mvpMapPoints[i] && !mCurrentFrame.mvbOutlier[i])
           nTrackedClose++;
@@ -1599,7 +1600,7 @@ bool Tracking::NeedNewKeyFrame()
         // tracking插入关键帧不是直接插入，而且先插入到mlNewKeyFrames中，
         // 然后localmapper再逐个pop出来插入到mspKeyFrames
         if(mpLocalMapper->KeyframesInQueue()<3)
-          //队列中的关键帧数目不是很多,可以插入
+          // 队列中的关键帧数目不是很多,可以插入
           return true;
         else
           //队列中缓冲的关键帧数目太多,暂时不能插入

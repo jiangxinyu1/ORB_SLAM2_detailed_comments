@@ -511,6 +511,7 @@ void MapPoint::UpdateNormalAndDepth()
   for(auto & observation : observations)
   {
     KeyFrame* pKF = observation.first;
+    // 相机光心在世界系下的位置
     cv::Mat Owi = pKF->GetCameraCenter();
     // 获得地图点和观测到它关键帧的向量并归一化
     cv::Mat normali = mWorldPos - Owi;
@@ -524,7 +525,7 @@ void MapPoint::UpdateNormalAndDepth()
   // 观测到该地图点的当前帧的特征点在金字塔的第几层
   const int level = pRefKF->mvKeysUn[observations[pRefKF]].octave;
   // 当前金字塔层对应的尺度因子，scale^n，scale=1.2，n为层数
-  const float levelScaleFactor =  pRefKF->mvScaleFactors[level];
+  const float levelScaleFactor = pRefKF->mvScaleFactors[level];
   // 金字塔总层数，默认为8
   const int nLevels = pRefKF->mnScaleLevels;
 

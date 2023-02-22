@@ -1597,8 +1597,10 @@ void ORBextractor::operator()( InputArray _image, InputArray _mask, vector<KeyPo
   //并预分配正确大小的空间
   _keypoints.reserve(nkeypoints);
 
-  //因为遍历是一层一层进行的，但是描述子那个矩阵是存储整个图像金字塔中特征点的描述子，所以在这里设置了Offset变量来保存“寻址”时的偏移量，
-  //辅助进行在总描述子mat中的定位
+  //因为遍历是一层一层进行的，
+  // 但是描述子那个矩阵是存储整个图像金字塔中特征点的描述子，
+  // 所以在这里设置了Offset变量来保存“寻址”时的偏移量，
+  // 辅助进行在总描述子mat中的定位
   int offset = 0;
   //开始遍历每一层图像
   for (int level = 0; level < nlevels; ++level)
@@ -1641,20 +1643,22 @@ void ORBextractor::operator()( InputArray _image, InputArray _mask, vector<KeyPo
     // Step 6 对非第0层图像中的特征点的坐标恢复到第0层图像（原图像）的坐标系下
     // ? 得到所有层特征点在第0层里的坐标放到_keypoints里面
     // 对于第0层的图像特征点，他们的坐标就不需要再进行恢复了
-    if (level != 0)
+    if ( level != 0 )
     {
       // 获取当前图层上的缩放系数
       float scale = mvScaleFactor[level];
       // 遍历本层所有的特征点
-      for (vector<KeyPoint>::iterator keypoint = keypoints.begin(),
-               keypointEnd = keypoints.end(); keypoint != keypointEnd; ++keypoint)
+      for (auto & keypoint : keypoints)
+      {
         // 特征点本身直接乘缩放倍数就可以了
-        keypoint->pt *= scale;
+        keypoint.pt *= scale;
+      }
     }
 
     // And add the keypoints to the output
     // 将keypoints中内容插入到_keypoints 的末尾
-    // keypoint其实是对allkeypoints中每层图像中特征点的引用，这样allkeypoints中的所有特征点在这里被转存到输出的_keypoints
+    // keypoint其实是对allkeypoints中每层图像中特征点的引用，
+    // 这样allkeypoints中的所有特征点在这里被转存到输出的_keypoints
     _keypoints.insert(_keypoints.end(), keypoints.begin(), keypoints.end());
   }
 }

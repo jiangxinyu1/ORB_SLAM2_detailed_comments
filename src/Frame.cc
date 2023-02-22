@@ -185,7 +185,7 @@ Frame::Frame(const cv::Mat &imLeft,
   ComputeStereoMatches();
 
   // 初始化本帧的地图点
-  mvpMapPoints = vector<MapPoint*>(N,static_cast<MapPoint*>(NULL));
+  mvpMapPoints = vector<MapPoint*>(N,static_cast<MapPoint*>(nullptr));
   // 记录地图点是否为外点，初始化均为外点false
   mvbOutlier = vector<bool>(N,false);
 
@@ -326,9 +326,22 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeSt
  * @param[in] bf                                //baseline*f
  * @param[in] thDepth                           //区分远近点的深度阈值
  */
-Frame::Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth)
-    :mpORBvocabulary(voc),mpORBextractorLeft(extractor),mpORBextractorRight(static_cast<ORBextractor*>(NULL)),
-     mTimeStamp(timeStamp), mK(K.clone()), mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth)
+Frame::Frame(const cv::Mat &imGray,
+             const double &timeStamp,
+             ORBextractor* extractor,
+             ORBVocabulary* voc,
+             cv::Mat &K,
+             cv::Mat &distCoef,
+             const float &bf,
+             const float &thDepth)
+    :mpORBvocabulary(voc),
+     mpORBextractorLeft(extractor),
+     mpORBextractorRight(static_cast<ORBextractor*>(NULL)),
+     mTimeStamp(timeStamp),
+     mK(K.clone()),
+     mDistCoef(distCoef.clone()),
+     mbf(bf),
+     mThDepth(thDepth)
 {
   // Frame ID
   // Step 1 帧的ID 自增
@@ -450,13 +463,16 @@ void Frame::ExtractORB(int flag, const cv::Mat &im)
   if(flag==0)
     // 左图的话就套使用左图指定的特征点提取器，并将提取结果保存到对应的变量中
     // 这里使用了仿函数来完成，重载了括号运算符 ORBextractor::operator()
-    (*mpORBextractorLeft)(im,				//待提取特征点的图像
-                          cv::Mat(),	//掩摸图像, 实际没有用到
-                          mvKeys,			  //输出变量，用于保存提取后的特征点
-                          mDescriptors);	//输出变量，用于保存特征点的描述子
+    (*mpORBextractorLeft)(im,				          // 待提取特征点的图像
+                          cv::Mat(),	          // 掩摸图像, 实际没有用到
+                          mvKeys,			            // 输出变量，用于保存提取后的特征点
+                          mDescriptors);	// 输出变量，用于保存特征点的描述子
   else
     // 右图的话就需要使用右图指定的特征点提取器，并将提取结果保存到对应的变量中
-    (*mpORBextractorRight)(im,cv::Mat(),mvKeysRight,mDescriptorsRight);
+    (*mpORBextractorRight)(im,
+                           cv::Mat(),
+                           mvKeysRight,
+                           mDescriptorsRight);
 }
 
 // 设置相机姿态
