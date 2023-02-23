@@ -179,7 +179,7 @@ namespace g2o {
   //variable size solver
   typedef BlockSolver< BlockSolverTraits<Eigen::Dynamic, Eigen::Dynamic> > BlockSolverX;
   // solver for BA/3D SLAM
-  typedef BlockSolver< BlockSolverTraits<6, 3> > BlockSolver_6_3;  
+  typedef BlockSolver< BlockSolverTraits<6, 3> > BlockSolver_6_3;
   // solver fo BA with scale
   typedef BlockSolver< BlockSolverTraits<7, 3> > BlockSolver_7_3;  
   // 2Dof landmarks 3Dof poses
