@@ -200,8 +200,10 @@ public:
 
     // Lists used to recover the full camera trajectory at the end of the execution.
     // Basically we store the reference keyframe for each frame and its relative transformation
-    ///所有的参考关键帧的位姿;看上面注释的意思,这里存储的也是相对位姿
-    list<cv::Mat> mlRelativeFramePoses;
+    // 用于在执行结束时恢复完整摄像机轨迹的列表
+    // 基本上我们存储每个帧的参考关键帧及其相对变换
+    ///所有的参考关键帧的位姿;
+    std::list<cv::Mat> mlRelativeFramePoses;
     ///参考关键帧
     list<KeyFrame*> mlpReferences;
     ///所有帧的时间戳  //? 还是关键帧的时间戳?

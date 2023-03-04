@@ -903,7 +903,7 @@ bool Initializer::ReconstructF(vector<bool> &vbMatchesInliers,
   // 定义四组解分别对同一匹配点集的有效三角化结果，True or False
   vector<bool> vbTriangulated1,vbTriangulated2,vbTriangulated3, vbTriangulated4;
   // 定义四种解对应的比较大的特征点对视差角
-  float parallax1,parallax2, parallax3, parallax4;
+  float parallax1,parallax2, parallax3, parallaxIJ4;
 
   // Step 4.1 使用同样的匹配点分别检查四组解，记录当前计算的3D点在摄像头前方且投影误差小于阈值的个数，记为有效3D点个数
   int nGood1 = CheckRT(R1,t1,							//当前组解
@@ -1345,7 +1345,7 @@ void Initializer::Triangulate( const cv::KeyPoint &kp1,    // 特征点, in refe
                                cv::Mat &x3D)               // 三维点
 {
   // 原理
-  // Trianularization: 已知匹配特征点对{x x'} 和 各自相机矩阵{P P'}, 估计三维点 X
+  // Triangulation: 已知匹配特征点对{x x'} 和 各自相机矩阵{P P'}, 估计三维点 X
   // x' = P'X  x = PX
   // 它们都属于 x = aPX模型
   //                         |X|

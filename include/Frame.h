@@ -294,9 +294,8 @@ public:
 
   ///相机的内参数矩阵
   cv::Mat mK;
-  //NOTICE 注意这里的相机内参数其实都是类的静态成员变量；此外相机的内参数矩阵和矫正参数矩阵却是普通的成员变量，
-  //NOTE 这样是否有些浪费内存空间？
-
+  // NOTICE 注意这里的相机内参数其实都是类的静态成员变量；此外相机的内参数矩阵和矫正参数矩阵却是普通的成员变量，
+  // NOTE 这样是否有些浪费内存空间?
 
   static float fx;        ///<x轴方向焦距
   static float fy;        ///<y轴方向焦距
@@ -348,8 +347,6 @@ public:
   ///校正mvKeys后的特征点
   std::vector<cv::KeyPoint> mvKeysUn;
 
-
-
   ///@note 之所以对于双目摄像头只保存左图像矫正后的特征点,是因为对于双目摄像头,一般得到的图像都是矫正好的,这里再矫正一次有些多余.\n
   ///校正操作是在帧的构造函数中进行的。
 
@@ -359,8 +356,8 @@ public:
   // mvDepth对应的深度
   // 单目摄像头，这两个容器中存的都是-1
 
-  ///@note 对于单目摄像头，这两个容器中存的都是-1
-  ///对于双目相机,存储左目像素点在右目中的对应点的横坐标 （因为纵坐标是一样的）
+  /// @note 对于单目摄像头，这两个容器中存的都是-1
+  /// 对于双目相机,存储左目像素点在右目中的对应点的横坐标 （因为纵坐标是一样的）
 
   std::vector<float> mvuRight;	//m-member v-vector u-指代横坐标,因为最后这个坐标是通过各种拟合方法逼近出来的，所以使用float存储
   ///对应的深度
@@ -388,13 +385,12 @@ public:
   std::vector<bool> mvbOutlier;
 
   // Keypoints are assigned to cells in a grid to reduce matching complexity when projecting MapPoints.
-  //原来通过对图像分区域还能够降低重投影地图点时候的匹配复杂度啊。。。。。
+  //原来通过对图像分区域还能够降低重投影地图点时候的匹配复杂度啊
   ///@note 注意到上面也是类的静态成员变量， 有一个专用的标志mbInitialComputations用来在帧的构造函数中标记这些静态成员变量是否需要被赋值
   /// 坐标乘以mfGridElementWidthInv和mfGridElementHeightInv就可以确定在哪个格子
   static float mfGridElementWidthInv;
   /// 坐标乘以mfGridElementWidthInv和mfGridElementHeightInv就可以确定在哪个格子
   static float mfGridElementHeightInv;
-
 
   // 每个格子分配的特征点数，将图像分成格子，保证提取的特征点比较均匀
   // FRAME_GRID_ROWS 48 FRAME_GRID_COLS 64
@@ -411,8 +407,7 @@ public:
   static long unsigned int nNextId; ///< Next Frame id.
   long unsigned int mnId; ///< Current Frame id.
 
-  // Reference Keyframe.
-  // 普通帧与自己共视程度最高的关键帧作为参考关键帧
+  // 普通帧与自己共视程度最高的关键帧作为参考关键帧 (Reference Keyframe.)
   KeyFrame* mpReferenceKF;
 
   /**

@@ -1211,8 +1211,7 @@ bool Tracking::TrackReferenceKeyFrame()
  */
 void Tracking::UpdateLastFrame()
 {
-  // Update pose according to reference keyframe
-  // Step 1：利用参考关键帧更新上一帧在世界坐标系下的位姿
+  // step 1：利用参考关键帧更新上一帧在世界坐标系下的位姿(Update pose according to reference keyframe)
   // 上一普通帧的参考关键帧，注意这里用的是参考关键帧（位姿准）而不是上上一帧的普通帧
   KeyFrame* pRef = mLastFrame.mpReferenceKF;
   // ref_keyframe 到 lastframe的位姿变换
@@ -1321,7 +1320,7 @@ bool Tracking::TrackWithMotionModel()
 
   // Update last frame pose according to its reference keyframe
   // Create "visual odometry" points
-  // Step 1：更新上一帧的位姿；对于双目或RGB-D相机，还会根据深度值生成临时地图点
+  // step 1：更新上一帧的位姿；对于双目或RGB-D相机，还会根据深度值生成临时地图点
   UpdateLastFrame();
 
   // Step 2：根据之前估计的速度，用恒速模型得到当前帧的初始位姿。
