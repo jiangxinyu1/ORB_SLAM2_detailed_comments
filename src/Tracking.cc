@@ -1204,8 +1204,9 @@ bool Tracking::TrackReferenceKeyFrame()
   return nmatchesMap>=10;
 }
 
+
 /**
- * @brief 更新上一帧位姿，在上一帧中生成临时地图点
+ * 使用上一帧对应的参考关键帧更新上一帧位姿，在上一帧中生成临时地图点
  * 单目情况：只计算了上一帧的世界坐标系位姿
  * 双目和rgbd情况：选取有有深度值的并且没有被选为地图点的点生成新的临时地图点，提高跟踪鲁棒性
  */
@@ -1218,50 +1219,45 @@ void Tracking::UpdateLastFrame()
   cv::Mat Tlr = mlRelativeFramePoses.back();
 
   // 将上一帧的世界坐标系下的位姿计算出来
-  // l:last, r:reference, w:world
-  // Tlw = Tlr*Trw
-  mLastFrame.SetPose(Tlr*pRef->GetPose());
+  // l:last, r:reference, w:world , Tlw = Tlr*Trw
+  mLastFrame.SetPose(Tlr * pRef->GetPose());
 
-  // 如果上一帧为关键帧，或者单目的情况，则退出
-  if(mnLastKeyFrameId==mLastFrame.mnId || mSensor==System::MONOCULAR)
+  if(mnLastKeyFrameId == mLastFrame.mnId || mSensor==System::MONOCULAR)
+  {
+    // 如果上一帧为关键帧，或者单目的情况，则退出
     return;
+  }
 
   // Step 2：对于双目或rgbd相机，为上一帧生成新的临时地图点
   // 注意这些地图点只是用来跟踪，不加入到地图中，跟踪完后会删除
-
   // Create "visual odometry" MapPoints
   // We sort points according to their measured depth by the stereo/RGB-D sensor
   // Step 2.1：得到上一帧中具有有效深度值的特征点（不一定是地图点）
-  vector<pair<float,int> > vDepthIdx;
+  std::vector<pair<float,int> > vDepthIdx;
   vDepthIdx.reserve(mLastFrame.N);
-
   for(int i=0; i<mLastFrame.N;i++)
   {
     float z = mLastFrame.mvDepth[i];
-    if(z>0)
+    if( z > 0 )
     {
       // vDepthIdx第一个元素是某个点的深度,第二个元素是对应的特征点id
-      vDepthIdx.push_back(make_pair(z,i));
+      vDepthIdx.emplace_back(z,i);
     }
   }
-
   // 如果上一帧中没有有效深度的点,那么就直接退出
-  if(vDepthIdx.empty())
-    return;
-
+  if(vDepthIdx.empty()) {return;}
   // 按照深度从小到大排序
-  sort(vDepthIdx.begin(),vDepthIdx.end());
+  std::sort(vDepthIdx.begin(),vDepthIdx.end());
 
   // We insert all close points (depth<mThDepth)
   // If less than 100 close points, we insert the 100 closest ones.
+
   // Step 2.2：从中找出不是地图点的部分
   int nPoints = 0;
   for(size_t j=0; j<vDepthIdx.size();j++)
   {
     int i = vDepthIdx[j].second;
-
     bool bCreateNew = false;
-
     // 如果这个点对应在上一帧中的地图点没有,或者创建后就没有被观测到,那么就生成一个临时的地图点
     MapPoint* pMP = mLastFrame.mvpMapPoints[i];
     if(!pMP)
@@ -1277,15 +1273,12 @@ void Tracking::UpdateLastFrame()
       // Step 2.3：需要创建的点，包装为地图点。只是为了提高双目和RGBD的跟踪成功率，并没有添加复杂属性，因为后面会扔掉
       // 反投影到世界坐标系中
       cv::Mat x3D = mLastFrame.UnprojectStereo(i);
-      MapPoint* pNewMP = new MapPoint(
-          x3D,            // 世界坐标系坐标
-          mpMap,          // 跟踪的全局地图
-          &mLastFrame,    // 存在这个特征点的帧(上一帧)
-          i);             // 特征点id
-
+      MapPoint* pNewMP = new MapPoint(x3D,                // 世界坐标系坐标
+                                      mpMap,            // 跟踪的全局地图
+                                      &mLastFrame,    // 存在这个特征点的帧(上一帧)
+                                      i);                // 特征点id
       // 加入上一帧的地图点中
       mLastFrame.mvpMapPoints[i]=pNewMP;
-
       // 标记为临时添加的MapPoint，之后在CreateNewKeyFrame之前会全部删除
       mlpTemporalPoints.push_back(pNewMP);
       nPoints++;
@@ -1295,13 +1288,11 @@ void Tracking::UpdateLastFrame()
       // 因为从近到远排序，记录其中不需要创建地图点的个数
       nPoints++;
     }
-
     // Step 2.4：如果地图点质量不好，停止创建地图点
     // 停止新增临时地图点必须同时满足以下条件：
     // 1、当前的点的深度已经超过了设定的深度阈值（35倍基线）
     // 2、nPoints已经超过100个点，说明距离比较远了，可能不准确，停掉退出
-    if(vDepthIdx[j].first>mThDepth && nPoints>100)
-      break;
+    if(vDepthIdx[j].first>mThDepth && nPoints>100) { break;}
   }
 }
 
@@ -1318,16 +1309,19 @@ bool Tracking::TrackWithMotionModel()
   // 最小距离 < 0.9*次小距离 匹配成功，检查旋转
   ORBmatcher matcher(0.9,true);
 
-  // Update last frame pose according to its reference keyframe
-  // Create "visual odometry" points
   // step 1：更新上一帧的位姿；对于双目或RGB-D相机，还会根据深度值生成临时地图点
+  // (1) 根据上一帧的参考关键帧更新当前帧的位姿
+  // (2) 双目和RGBD需要创建临时地图点(深度值小于35倍基线)
   UpdateLastFrame();
 
-  // Step 2：根据之前估计的速度，用恒速模型得到当前帧的初始位姿。
+  // step 2：根据之前估计的速度，用恒速模型得到当前帧的初始位姿
+  //
   mCurrentFrame.SetPose(mVelocity*mLastFrame.mTcw);
 
   // 清空当前帧的地图点
-  fill(mCurrentFrame.mvpMapPoints.begin(),mCurrentFrame.mvpMapPoints.end(),static_cast<MapPoint*>(NULL));
+  std::fill(mCurrentFrame.mvpMapPoints.begin(),
+            mCurrentFrame.mvpMapPoints.end(),
+            static_cast<MapPoint*>(nullptr));
 
   // Project points seen in previous frame
   // 设置特征匹配过程中的搜索半径
@@ -1367,7 +1361,6 @@ bool Tracking::TrackWithMotionModel()
       {
         // 如果优化后判断某个地图点是外点，清除它的所有关系
         MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
-
         mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
         mCurrentFrame.mvbOutlier[i]=false;
         pMP->mbTrackInView = false;
