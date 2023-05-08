@@ -2102,7 +2102,6 @@ int ORBmatcher::DescriptorDistance(const cv::Mat &a, const cv::Mat &b)
     v = (v & 0x33333333) + ((v >> 2) & 0x33333333);
     dist += (((v + (v >> 4)) & 0xF0F0F0F) * 0x1010101) >> 24;
   }
-
   return dist;
 }
 

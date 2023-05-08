@@ -1315,7 +1315,7 @@ bool Tracking::TrackWithMotionModel()
   UpdateLastFrame();
 
   // step 2：根据之前估计的速度，用恒速模型得到当前帧的初始位姿
-  //
+  // ？ 这里为什么用速度乘上？
   mCurrentFrame.SetPose(mVelocity*mLastFrame.mTcw);
 
   // 清空当前帧的地图点
@@ -1323,31 +1323,34 @@ bool Tracking::TrackWithMotionModel()
             mCurrentFrame.mvpMapPoints.end(),
             static_cast<MapPoint*>(nullptr));
 
+  // step 3：特征匹配:用上一帧地图点进行投影匹配，如果匹配点不够，则扩大搜索半径再来一次
   // Project points seen in previous frame
   // 设置特征匹配过程中的搜索半径
   int th;
-  if(mSensor!=System::STEREO)
+  if(mSensor != System::STEREO){
     th=15;//单目
-  else
+  }else{
     th=7;//双目
-
-  // Step 3：用上一帧地图点进行投影匹配，如果匹配点不够，则扩大搜索半径再来一次
-  int nmatches = matcher.SearchByProjection(mCurrentFrame,mLastFrame,th,mSensor==System::MONOCULAR);
-
-  // If few matches, uses a wider window search
-  // 如果匹配点太少，则扩大搜索半径再来一次
+  }
+  int nmatches = matcher.SearchByProjection(mCurrentFrame,
+                                            mLastFrame,
+                                            th,
+                                            mSensor==System::MONOCULAR);
+  // 如果匹配点太少，则扩大搜索半径再来一次 (If few matches, uses a wider window search)
   if(nmatches<20)
   {
-    fill(mCurrentFrame.mvpMapPoints.begin(),mCurrentFrame.mvpMapPoints.end(),static_cast<MapPoint*>(NULL));
-    nmatches = matcher.SearchByProjection(mCurrentFrame,mLastFrame,2*th,mSensor==System::MONOCULAR); // 2*th
+    std::fill(mCurrentFrame.mvpMapPoints.begin(),
+         mCurrentFrame.mvpMapPoints.end(),
+         static_cast<MapPoint*>(nullptr));
+    nmatches = matcher.SearchByProjection(mCurrentFrame,
+                                          mLastFrame,
+                                          2*th,
+                                          mSensor==System::MONOCULAR); // 2*th
   }
-
   // 如果还是不能够获得足够的匹配点,那么就认为跟踪失败
-  if(nmatches<20)
-    return false;
+  if(nmatches<20) {return false;}
 
-  // Optimize frame pose with all matches
-  // Step 4：利用3D-2D投影关系，优化当前帧位姿
+  // Step 4：利用3D-2D投影关系，PnP问题，优化当前帧位姿 (Optimize frame pose with all matches)
   Optimizer::PoseOptimization(&mCurrentFrame);
 
   // Discard outliers
@@ -1361,7 +1364,7 @@ bool Tracking::TrackWithMotionModel()
       {
         // 如果优化后判断某个地图点是外点，清除它的所有关系
         MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
-        mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
+        mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(nullptr);
         mCurrentFrame.mvbOutlier[i]=false;
         pMP->mbTrackInView = false;
         pMP->mnLastFrameSeen = mCurrentFrame.mnId;
